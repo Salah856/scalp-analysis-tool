@@ -3,7 +3,6 @@ import { Stage, Layer, Image, Line, Text, Group } from 'react-konva';
 import useImage from 'use-image';
 import heic2any from 'heic2any';
 
-
 interface PolygonArea {
   id: string;
   color: string;
@@ -36,6 +35,7 @@ const ScalpAnalysisTool: React.FC = () => {
       document.body.removeChild(div);
       return pxPerCm;
     };
+
     setPixelsPerCm(calcPixelsPerCm());
   }, []);
 
