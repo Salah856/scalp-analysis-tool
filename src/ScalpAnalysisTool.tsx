@@ -1,6 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer, Image, Line, Text, Group } from 'react-konva';
 import useImage from 'use-image';
+import heic2any from 'heic2any';
+
 
 interface PolygonArea {
   id: string;
@@ -12,6 +14,7 @@ interface PolygonArea {
 const ScalpAnalysisTool: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
+
   const [imageURL, setImageURL] = useState<string | null>(null);
   const [image] = useImage(imageURL || '');
   const [polygons, setPolygons] = useState<PolygonArea[]>([]);
@@ -37,14 +40,19 @@ const ScalpAnalysisTool: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (image) {
-      const containerWidth = window.innerWidth - 32;
-      const scale = image.width > containerWidth ? containerWidth / image.width : 1;
-      setStageSize({
-        width: image.width * scale,
-        height: image.height * scale,
-      });
-    }
+    const updateStageSize = () => {
+      if (image) {
+        const containerWidth = window.innerWidth - 32;
+        const scale = image.width > containerWidth ? containerWidth / image.width : 1;
+        setStageSize({
+          width: image.width * scale,
+          height: image.height * scale,
+        });
+      }
+    };
+    updateStageSize();
+    window.addEventListener('resize', updateStageSize);
+    return () => window.removeEventListener('resize', updateStageSize);
   }, [image]);
 
   const getPointerPos = (e: any) => {
@@ -52,9 +60,24 @@ const ScalpAnalysisTool: React.FC = () => {
     return stage.getPointerPosition();
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    if (file.type === 'image/heic' || file.name.endsWith('.heic')) {
+      try {
+        const convertedBlob = (await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.8,
+        })) as Blob;
+        const convertedURL = URL.createObjectURL(convertedBlob);
+        setImageURL(convertedURL);
+      } catch (error) {
+        alert('Failed to convert HEIC image.');
+        console.error(error);
+      }
+    } else {
       const reader = new FileReader();
       reader.onload = (event) => {
         const url = event.target?.result as string;
@@ -97,10 +120,10 @@ const ScalpAnalysisTool: React.FC = () => {
     }
 
     const areaPixels = Math.abs(
-      coords.reduce((sum: number, curr: any, i: any) => {
-        const next = coords[(i + 1) % coords?.length];
-        return sum + (curr?.x * next?.y - next?.x * curr?.y);
-      }, 0) / 2,
+      coords.reduce((sum: any, curr: any, i: any) => {
+        const next = coords[(i + 1) % coords.length];
+        return sum + (curr.x * next.y - next.x * curr.y);
+      }, 0) / 2
     );
 
     const newPolygon: PolygonArea = {
@@ -124,7 +147,7 @@ const ScalpAnalysisTool: React.FC = () => {
       <h2 style={styles.heading}>Scalp Analysis Tool</h2>
 
       <div style={styles.controls}>
-        <input type="file" accept="image/*" onChange={handleImageUpload} style={styles.fileInput} />
+        <input type="file" accept="image/*,.heic" onChange={handleImageUpload} style={styles.fileInput} />
 
         <label style={styles.label}>
           Color:
@@ -229,12 +252,14 @@ const styles: { [key: string]: React.CSSProperties } = {
   heading: {
     fontSize: '1.5rem',
     marginBottom: '1rem',
+    textAlign: 'center',
   },
   controls: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: '1rem',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: '1rem',
   },
   fileInput: {
@@ -281,6 +306,3 @@ const styles: { [key: string]: React.CSSProperties } = {
 };
 
 export default ScalpAnalysisTool;
-
-
-
