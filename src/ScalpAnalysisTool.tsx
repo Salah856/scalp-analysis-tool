@@ -346,6 +346,10 @@ const ScalpAnalysisTool: React.FC = () => {
     setIsDrawing(false);
   };
 
+  const undoLastPolygon = () => {
+    setPolygons((prev) => prev.slice(0, -1));
+  };
+
   return (
     <div ref={containerRef} style={styles.container}>
       <h2 style={styles.heading}>Scalp Analysis Tool</h2>
@@ -365,6 +369,10 @@ const ScalpAnalysisTool: React.FC = () => {
 
         <button onClick={() => setIsDrawing(true)} disabled={!image} style={styles.button}>
           Start Drawing
+        </button>
+
+        <button onClick={undoLastPolygon} disabled={polygons.length === 0} style={styles.undoButton}>
+          Undo Last
         </button>
       </div>
 
@@ -478,6 +486,15 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '0.5rem 1rem',
     fontSize: '1rem',
     backgroundColor: '#007bff',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+  },
+  undoButton: {
+    padding: '0.5rem 1rem',
+    fontSize: '1rem',
+    backgroundColor: '#dc3545',
     color: 'white',
     border: 'none',
     borderRadius: '6px',
