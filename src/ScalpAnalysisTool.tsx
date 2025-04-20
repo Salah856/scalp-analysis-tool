@@ -30,7 +30,7 @@ const ScalpAnalysisTool: React.FC = () => {
     };
 
     const dpi = getDeviceDPI();
-    const pxPerCm = dpi / 2.54; // Convert from pixels to cm
+    const pxPerCm = dpi / 2.54;
     setPixelsPerCm(pxPerCm);
   }, []);
 
