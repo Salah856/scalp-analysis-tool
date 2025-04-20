@@ -228,8 +228,9 @@
 
 //////////////////////////////////////////////////////////////////////////////////////
 
-import React, { useRef, useState } from 'react';
-import { Stage, Layer, Image, Line, Text, Group, Circle } from 'react-konva';
+
+import React, { useRef, useState, useEffect } from 'react';
+import { Stage, Layer, Image, Line, Text, Group } from 'react-konva';
 import useImage from 'use-image';
 
 interface PolygonArea {
@@ -240,13 +241,47 @@ interface PolygonArea {
 }
 
 const ScalpAnalysisTool: React.FC = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<any>(null);
   const [imageURL, setImageURL] = useState<string | null>(null);
   const [image] = useImage(imageURL || '');
   const [polygons, setPolygons] = useState<PolygonArea[]>([]);
   const [currentPolygonPoints, setCurrentPolygonPoints] = useState<number[]>([]);
+  const [drawingPoints, setDrawingPoints] = useState<number[]>([]);
   const [currentColor, setCurrentColor] = useState<string>('#FF0000');
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
-  const stageRef = useRef<any>(null);
+  const [pixelsPerCm, setPixelsPerCm] = useState<number>(1);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const calcPixelsPerCm = () => {
+      const div = document.createElement('div');
+      div.style.width = '1cm';
+      div.style.position = 'absolute';
+      div.style.visibility = 'hidden';
+      document.body.appendChild(div);
+      const pxPerCm = div.offsetWidth;
+      document.body.removeChild(div);
+      return pxPerCm;
+    };
+    setPixelsPerCm(calcPixelsPerCm());
+  }, []);
+
+  useEffect(() => {
+    if (image) {
+      const containerWidth = window.innerWidth - 32;
+      const scale = image.width > containerWidth ? containerWidth / image.width : 1;
+      setStageSize({
+        width: image.width * scale,
+        height: image.height * scale,
+      });
+    }
+  }, [image]);
+
+  const getPointerPos = (e: any) => {
+    const stage = e.target.getStage();
+    return stage.getPointerPosition();
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -260,57 +295,49 @@ const ScalpAnalysisTool: React.FC = () => {
     }
   };
 
-  const getPixelsPerCm = () => {
-    const div = document.createElement('div');
-    div.style.width = '1cm';
-    div.style.position = 'absolute';
-    div.style.visibility = 'hidden';
-    document.body.appendChild(div);
-    const pixelsPerCm = div.offsetWidth;
-    document.body.removeChild(div);
-    return pixelsPerCm;
-  };
-  
-  console.log(getPixelsPerCm());   
-
-  const handleClick = (e: any) => {
+  const handleMouseDown = (e: any) => {
     if (!isDrawing) return;
-
-    const { x, y } = e.target.getStage().getPointerPosition();
-    const points = [...currentPolygonPoints, x, y];
-
-    if (points.length >= 6) {
-      const dx = points[0] - x;
-      const dy = points[1] - y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 10) {
-        finishPolygon();
-        return;
-      }
-    }
-
-    setCurrentPolygonPoints(points);
+    const pos = getPointerPos(e);
+    setDrawingPoints([pos.x, pos.y]);
   };
 
-  const finishPolygon = () => {
-    if (currentPolygonPoints.length < 6) return;
+  const handleMouseMove = (e: any) => {
+    if (!isDrawing || drawingPoints.length === 0) return;
+    const pos = getPointerPos(e);
+    setDrawingPoints((prev) => [...prev, pos.x, pos.y]);
+  };
+
+  const handleMouseUp = () => {
+    if (drawingPoints.length >= 6) {
+      setCurrentPolygonPoints(drawingPoints);
+      setDrawingPoints([]);
+      finishPolygon(drawingPoints);
+    }
+  };
+
+  const handleTouchStart = handleMouseDown;
+  const handleTouchMove = handleMouseMove;
+  const handleTouchEnd = handleMouseUp;
+
+  const finishPolygon = (points: number[] = currentPolygonPoints) => {
+    if (points.length < 6) return;
 
     const coords: any = [];
-    for (let i = 0; i < currentPolygonPoints.length; i += 2) {
-      coords.push({ x: currentPolygonPoints[i], y: currentPolygonPoints[i + 1] });
+    for (let i = 0; i < points.length; i += 2) {
+      coords.push({ x: points[i], y: points[i + 1] });
     }
 
     const areaPixels = Math.abs(
-      coords.reduce((sum: number, curr: { x: number; y: number }, i: number) => {
-        const next = coords[(i + 1) % coords.length];
-        return sum + (curr.x * next.y - next.x * curr.y);
-      }, 0) / 2
+      coords.reduce((sum: number, curr: any, i: any) => {
+        const next = coords[(i + 1) % coords?.length];
+        return sum + (curr?.x * next?.y - next?.x * curr?.y);
+      }, 0) / 2,
     );
 
     const newPolygon: PolygonArea = {
       id: Date.now().toString(),
       color: currentColor,
-      points: currentPolygonPoints,
+      points,
       areaPixels,
     };
 
@@ -320,42 +347,45 @@ const ScalpAnalysisTool: React.FC = () => {
   };
 
   return (
-    <div>
-      <h1>Scalp Analysis Tool – Freehand Mode</h1>
+    <div ref={containerRef} style={styles.container}>
+      <h2 style={styles.heading}>Scalp Analysis Tool</h2>
 
-      <input type="file" accept="image/*" onChange={handleImageUpload} />
+      <div style={styles.controls}>
+        <input type="file" accept="image/*" onChange={handleImageUpload} style={styles.fileInput} />
 
-      <label style={{ marginLeft: '1rem' }}>
-        Select Color:
-        <input type="color" value={currentColor} onChange={(e) => setCurrentColor(e.target.value)} />
-      </label>
+        <label style={styles.label}>
+          Color:
+          <input
+            type="color"
+            value={currentColor}
+            onChange={(e) => setCurrentColor(e.target.value)}
+            style={styles.colorPicker}
+          />
+        </label>
 
-      <div style={{ marginTop: '1rem' }}>
-        <button onClick={() => setIsDrawing(true)} disabled={!image}>
-          Start Drawing Region
-        </button>
-        <button onClick={finishPolygon} disabled={currentPolygonPoints.length < 6}>
-          Finish Region
+        <button onClick={() => setIsDrawing(true)} disabled={!image} style={styles.button}>
+          Start Drawing
         </button>
       </div>
 
-      <div style={{ border: '1px solid #ccc', marginTop: '1rem' }}>
-        {image && (
+      {image && (
+        <div style={{ ...styles.canvasWrapper, width: stageSize.width }}>
           <Stage
             ref={stageRef}
-            width={image.width}
-            height={image.height}
-            onClick={handleClick}
-            style={{ cursor: isDrawing ? 'crosshair' : 'default' }}
+            width={stageSize.width}
+            height={stageSize.height}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            style={{ touchAction: 'none', border: '1px solid #ccc' }}
           >
             <Layer>
-              <Image
-                image={image}
-                width={window.innerWidth / 2}
-                height={image.height / 2 * (window.innerWidth / image.width)}
-              />
+              <Image image={image} width={stageSize.width} height={stageSize.height} />
 
-              {polygons?.map((poly) => (
+              {polygons.map((poly) => (
                 <Group key={poly.id}>
                   <Line
                     points={poly.points}
@@ -368,66 +398,104 @@ const ScalpAnalysisTool: React.FC = () => {
                   <Text
                     x={poly.points[0]}
                     y={poly.points[1] - 20}
-                    text={
-                      `Area: ${
-                        Number(+poly?.areaPixels?.toFixed(2) / (getPixelsPerCm() * getPixelsPerCm()))?.toFixed(2)
-                      } cm²`
-                    }
+                    text={`Area: ${(poly.areaPixels / (pixelsPerCm * pixelsPerCm)).toFixed(2)} cm²`}
                     fontSize={14}
                     fill="black"
                   />
                 </Group>
               ))}
 
-              {/* Currently drawing polygon */}
-              {currentPolygonPoints.length > 2 && (
-                <>
-                  <Line
-                    points={currentPolygonPoints}
-                    stroke={currentColor}
-                    strokeWidth={2}
-                    dash={[5, 5]}
-                  />
-                  {currentPolygonPoints.map((_, i) =>
-                    i % 2 === 0 ? (
-                      <Circle
-                        key={i}
-                        x={currentPolygonPoints[i]}
-                        y={currentPolygonPoints[i + 1]}
-                        radius={3}
-                        fill={currentColor}
-                      />
-                    ) : null
-                  )}
-                </>
+              {drawingPoints.length > 2 && (
+                <Line
+                  points={drawingPoints}
+                  stroke={currentColor}
+                  strokeWidth={2}
+                  lineJoin="round"
+                  tension={0.4}
+                />
               )}
             </Layer>
           </Stage>
-        )}
-      </div>
+        </div>
+      )}
 
-      <h3>Regions Drawn</h3>
-      <ul>
-        {polygons.map((p) => (
-          <li key={p.id}>
-            <div
-              style={{
-                backgroundColor: p.color,
-                width: 20,
-                height: 20,
-                display: 'inline-block',
-                marginRight: 10,
-              }}
-            ></div>
-            {p.points.length / 2} points — {p.areaPixels.toFixed(2)} px²
-          </li>
-        ))}
-      </ul>
+      <div style={styles.regionList}>
+        <h3>Regions</h3>
+        <ul>
+          {polygons.map((p) => (
+            <li key={p.id}>
+              <span
+                style={{
+                  backgroundColor: p.color,
+                  width: 12,
+                  height: 12,
+                  display: 'inline-block',
+                  marginRight: 8,
+                  borderRadius: '50%',
+                }}
+              />
+              {p.points.length / 2} points – {(p.areaPixels / (pixelsPerCm * pixelsPerCm)).toFixed(2)} cm²
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };
 
+const styles: { [key: string]: React.CSSProperties } = {
+  container: {
+    padding: '1rem',
+    fontFamily: 'sans-serif',
+    maxWidth: '100%',
+  },
+  heading: {
+    fontSize: '1.5rem',
+    marginBottom: '1rem',
+  },
+  controls: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '1rem',
+    alignItems: 'center',
+    marginBottom: '1rem',
+  },
+  fileInput: {
+    fontSize: '1rem',
+  },
+  label: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  colorPicker: {
+    width: '40px',
+    height: '30px',
+    border: 'none',
+    padding: 0,
+  },
+  button: {
+    padding: '0.5rem 1rem',
+    fontSize: '1rem',
+    backgroundColor: '#007bff',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+  },
+  canvasWrapper: {
+    maxWidth: '100%',
+    overflowX: 'auto',
+    marginBottom: '1rem',
+  },
+  regionList: {
+    marginTop: '1rem',
+    fontSize: '0.9rem',
+  },
+};
+
 export default ScalpAnalysisTool;
+
 
 
 
