@@ -26,7 +26,7 @@ const ScalpAnalysisTool: React.FC = () => {
 
   useEffect(() => {
     const getDeviceDPI = () => {
-      return window.devicePixelRatio * 96; // Default is 96 DPI for most browsers
+      return window.devicePixelRatio * 96;
     };
 
     const dpi = getDeviceDPI();
@@ -193,7 +193,7 @@ const ScalpAnalysisTool: React.FC = () => {
                   <Text
                     x={poly.points[0]}
                     y={poly.points[1] - 20}
-                    text={`Area: ${(poly.areaPixels / (pixelsPerCm * pixelsPerCm)).toFixed(2)} cm²`}
+                    text={`Area: ${(poly.areaPixels / (pixelsPerCm * pixelsPerCm * 2.64))?.toFixed(2)} cm²`}
                     fontSize={14}
                     fill="black"
                   />
@@ -229,7 +229,7 @@ const ScalpAnalysisTool: React.FC = () => {
                   borderRadius: '50%',
                 }}
               />
-              {p.points.length / 2} points – {(p.areaPixels / (pixelsPerCm * pixelsPerCm)).toFixed(2)} cm²
+              {p.points.length / 2} points – {(p.areaPixels / (pixelsPerCm * pixelsPerCm * 2.64))?.toFixed(2)} cm²
             </li>
           ))}
         </ul>
