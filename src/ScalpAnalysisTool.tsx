@@ -349,7 +349,12 @@ const ScalpAnalysisTool: React.FC = () => {
             style={{ cursor: isDrawing ? 'crosshair' : 'default' }}
           >
             <Layer>
-              <Image image={image} />
+              {/* The image */}
+              <Image
+                image={image}
+                width={window.innerWidth / 2}
+                height={image.height / 2 * (window.innerWidth / image.width)}
+              />
 
               {/* Completed polygons */}
               {polygons?.map((poly) => (
@@ -425,6 +430,7 @@ const ScalpAnalysisTool: React.FC = () => {
 };
 
 export default ScalpAnalysisTool;
+
 
 
 ///////////////////////////////////
