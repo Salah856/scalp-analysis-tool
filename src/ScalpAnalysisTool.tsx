@@ -25,18 +25,13 @@ const ScalpAnalysisTool: React.FC = () => {
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const calcPixelsPerCm = () => {
-      const div = document.createElement('div');
-      div.style.width = '1cm';
-      div.style.position = 'absolute';
-      div.style.visibility = 'hidden';
-      document.body.appendChild(div);
-      const pxPerCm = div.offsetWidth;
-      document.body.removeChild(div);
-      return pxPerCm;
+    const getDeviceDPI = () => {
+      return window.devicePixelRatio * 96; // Default is 96 DPI for most browsers
     };
 
-    setPixelsPerCm(calcPixelsPerCm());
+    const dpi = getDeviceDPI();
+    const pxPerCm = dpi / 2.54; // Convert from pixels to cm
+    setPixelsPerCm(pxPerCm);
   }, []);
 
   useEffect(() => {
