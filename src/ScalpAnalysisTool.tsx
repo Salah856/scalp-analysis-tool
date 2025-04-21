@@ -149,6 +149,10 @@ const ScalpAnalysisTool: React.FC = () => {
   return (
     <div ref={containerRef} style={styles.container}>
       <h2 style={styles.heading}>Scalp Analysis Tool</h2>
+      <h3>Device Type: </h3>
+      {
+        `${navigator.userAgent} and width: ${window.innerWidth}px`
+      }
 
       <div style={styles.controls}>
         <input type="file" accept="image/*,.heic" onChange={handleImageUpload} style={styles.fileInput} />
