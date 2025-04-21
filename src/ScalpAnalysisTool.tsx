@@ -55,6 +55,15 @@ const ScalpAnalysisTool: React.FC = () => {
     return stage.getPointerPosition();
   };
 
+  function isMobileDevice() {
+    const isMobileUA = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isSmallScreen = window.innerWidth <= 768;
+    return isMobileUA || isSmallScreen;
+  }
+  
+  let isMobile = isMobileDevice(); 
+  let scaleFactor = isMobile ? 16 : ( 1 / 2.64); 
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -193,7 +202,7 @@ const ScalpAnalysisTool: React.FC = () => {
                   <Text
                     x={poly.points[0]}
                     y={poly.points[1] - 20}
-                    text={`Area: ${(poly.areaPixels / (pixelsPerCm * pixelsPerCm * 2.64))?.toFixed(2)} cm²`}
+                    text={`Area: ${(poly.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm))?.toFixed(2)} cm²`}
                     fontSize={14}
                     fill="black"
                   />
@@ -229,7 +238,7 @@ const ScalpAnalysisTool: React.FC = () => {
                   borderRadius: '50%',
                 }}
               />
-              {p.points.length / 2} points – {(p.areaPixels / (pixelsPerCm * pixelsPerCm * 2.64))?.toFixed(2)} cm²
+              {p.points.length / 2} points – {(p.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm))?.toFixed(2)} cm²
             </li>
           ))}
         </ul>
