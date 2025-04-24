@@ -4,20 +4,28 @@ import useImage from 'use-image';
 import heic2any from 'heic2any';
 import html2canvas from 'html2canvas'; 
 
+
 interface PolygonArea {
   id: string;
   color: string;
   points: number[];
   areaPixels: number;
+  customDensity?: number; 
+};
+
+interface ColorDensity {
+  color: string;
+  density: number;
+  label?: string;
 }
 
-const graftsPerCmByColor: Record<string, number> = {
-  '#FF0000': 40,  // Red
-  '#FFFF00': 35,  // Yellow
-  '#0000FF': 30,  // Blue
-  '#00FF00': 25,  // Green
-  '#800080': 20   // Purple
-};
+const defaultDensities: ColorDensity[] = [
+  { color: '#FF0000', density: 40, label: 'High Density' },
+  { color: '#FFFF00', density: 35, label: 'Medium-High' },
+  { color: '#0000FF', density: 30, label: 'Medium' },
+  { color: '#00FF00', density: 25, label: 'Medium-Low' },
+  { color: '#800080', density: 20, label: 'Low Density' }
+];
 
 const ScalpAnalysisTool: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,10 +45,48 @@ const ScalpAnalysisTool: React.FC = () => {
   const [pixelsPerCm, setPixelsPerCm] = useState<number>(1);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const [fileName, setFileName] = useState<string>('scalp-analysis');
+  const [colorDensities, setColorDensities] = useState<ColorDensity[]>(defaultDensities);
+  const [showDensityModal, setShowDensityModal] = useState<boolean>(false);
+  const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
+  const [tempDensity, setTempDensity] = useState<string>('');
+
+  const getDensityForColor = (color: string): number => {
+    const densityObj = colorDensities.find(d => d.color === color);
+    return densityObj ? densityObj.density : 0;
+  };
+
+  const updatePolygonDensity = (id: string, density: number) => {
+    setPolygons(polygons.map(poly => 
+      poly.id === id ? { ...poly, customDensity: density } : poly
+    ));
+  };
+
+  const handleDensityInput = (polygon: PolygonArea) => {
+    setEditingPolygonId(polygon.id);
+    setTempDensity(polygon.customDensity?.toString() || getDensityForColor(polygon.color).toString());
+    setShowDensityModal(true);
+  };
+
+  const saveCustomDensity = () => {
+    if (editingPolygonId && tempDensity) {
+      const densityValue = parseFloat(tempDensity);
+      if (!isNaN(densityValue)) {
+        updatePolygonDensity(editingPolygonId, densityValue);
+        // Also update the color densities if this color isn't already in the list
+        const polygon = polygons.find(p => p.id === editingPolygonId);
+        if (polygon && !colorDensities.some(d => d.color === polygon.color)) {
+          setColorDensities([
+            ...colorDensities,
+            { color: polygon.color, density: densityValue }
+          ]);
+        }
+      }
+    }
+    setShowDensityModal(false);
+  };
 
   // Function to find the closest predefined color
-  const getClosestColor = (color: string): string => {
-    // Convert hex to RGB
+  const getClosestColor = (color: string): ColorDensity => {
     const hexToRgb = (hex: string) => {
       const r = parseInt(hex.slice(1, 3), 16);
       const g = parseInt(hex.slice(3, 5), 16);
@@ -48,7 +94,6 @@ const ScalpAnalysisTool: React.FC = () => {
       return { r, g, b };
     };
 
-    // Calculate color distance
     const colorDistance = (c1: { r: number; g: number; b: number }, c2: { r: number; g: number; b: number }) => {
       return Math.sqrt(
         Math.pow(c1.r - c2.r, 2) +
@@ -58,16 +103,15 @@ const ScalpAnalysisTool: React.FC = () => {
     };
 
     const inputRgb = hexToRgb(color);
-    const colors = Object.keys(graftsPerCmByColor);
     
-    let closestColor = colors[0];
-    let minDistance = colorDistance(inputRgb, hexToRgb(colors[0]));
+    let closestColor = colorDensities[0];
+    let minDistance = colorDistance(inputRgb, hexToRgb(colorDensities[0].color));
 
-    for (let i = 1; i < colors.length; i++) {
-      const distance = colorDistance(inputRgb, hexToRgb(colors[i]));
+    for (let i = 1; i < colorDensities.length; i++) {
+      const distance = colorDistance(inputRgb, hexToRgb(colorDensities[i].color));
       if (distance < minDistance) {
         minDistance = distance;
-        closestColor = colors[i];
+        closestColor = colorDensities[i];
       }
     }
 
@@ -105,10 +149,10 @@ const ScalpAnalysisTool: React.FC = () => {
     const data = {
       image: imageURL,
       polygons: polygons,
+      colorDensities: colorDensities,
       createdAt: new Date().toISOString(),
       settings: {
         pixelsPerCm,
-        graftsPerCmByColor
       }
     };
     
@@ -130,6 +174,7 @@ const ScalpAnalysisTool: React.FC = () => {
         const data = JSON.parse(event.target?.result as string);
         if (data.image) setImageURL(data.image);
         if (data.polygons) setPolygons(data.polygons);
+        if (data.colorDensities) setColorDensities(data.colorDensities);
       } catch (error) {
         alert('Failed to load file. Invalid format.');
         console.error(error);
@@ -160,6 +205,10 @@ const ScalpAnalysisTool: React.FC = () => {
     window.addEventListener('resize', updateStageSize);
     return () => window.removeEventListener('resize', updateStageSize);
   }, [image]);
+
+
+  // Rest of the existing functions (useEffect, getPointerPos, isMobileDevice, etc.) remain the same
+  // ... [Previous useEffect and other helper functions remain unchanged]
 
   const getPointerPos = (e: any) => {
     const stage = e.target.getStage();
@@ -417,10 +466,11 @@ const ScalpAnalysisTool: React.FC = () => {
                   {polygons.map((poly) => {
                     const areaCm = poly.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm);
                     const matchedColor = getClosestColor(poly.color);
-                    const grafts = Math.round(areaCm * (graftsPerCmByColor[matchedColor] || 0));
+                    const density = poly.customDensity || matchedColor.density;
+                    const grafts = Math.round(areaCm * density);
 
                     return (
-                      <Group key={poly.id}>
+                      <Group key={poly.id} onClick={() => handleDensityInput(poly)}>
                         <Line
                           points={poly.points}
                           closed
@@ -439,7 +489,7 @@ const ScalpAnalysisTool: React.FC = () => {
                         <Text
                           x={poly.points[0]}
                           y={poly.points[1] - 20}
-                          text={`Grafts: ${grafts} (${matchedColor})`}
+                          text={`Grafts: ${grafts} (${density} grafts/cm²)`}
                           fontSize={14}
                           fill="black"
                         />
@@ -475,24 +525,50 @@ const ScalpAnalysisTool: React.FC = () => {
 
           <div style={styles.regionList}>
             <h3>Regions</h3>
-            <ul>
+            <ul style={{ listStyle: 'none', padding: 0 }}>
               {polygons.map((p) => {
                 const areaCm = p.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm);
                 const matchedColor = getClosestColor(p.color);
-                const grafts = Math.round(areaCm * (graftsPerCmByColor[matchedColor] || 0));
+                const density = p.customDensity || matchedColor.density;
+                const grafts = Math.round(areaCm * density);
                 return (
-                  <li key={p.id}>
-                    <span
-                      style={{
-                        backgroundColor: p.color,
-                        width: 12,
-                        height: 12,
-                        display: 'inline-block',
-                        marginRight: 8,
-                        borderRadius: '50%',
-                      }}
-                    />
-                    {p.points.length / 2} points – {areaCm.toFixed(2)} cm² – {grafts} grafts (matched to {matchedColor})
+                  <li 
+                    key={p.id} 
+                    style={{ 
+                      marginBottom: '8px', 
+                      padding: '8px', 
+                      backgroundColor: 'black',
+                      borderRadius: '4px',
+                      cursor: 'pointer', 
+                      color: 'white',
+                    }}
+                    onClick={() => handleDensityInput(p)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          backgroundColor: p.color,
+                          width: '16px',
+                          height: '16px',
+                          display: 'inline-block',
+                          marginRight: '12px',
+                          borderRadius: '50%',
+                        }}
+                      />
+                      <div>
+                        <div>
+                          <strong>Area:</strong> {areaCm.toFixed(2)} cm²
+                        </div>
+                        <div>
+                          <strong>Required Grafts:</strong> {grafts} (Density: {density} grafts/cm²)
+                        </div>
+                        {p?.customDensity && (
+                          <div style={{ color: '#666', fontSize: '0.8em' }}>
+                            Custom density applied
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </li>
                 );
               })}
@@ -500,9 +576,37 @@ const ScalpAnalysisTool: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showDensityModal && (
+        <div style={styles?.modalOverlay}>
+          <div style={styles?.modalContent}>
+            <h3>Set Graft Density</h3>
+            <p>Enter grafts per cm² for this region:</p>
+            <input
+              type="number"
+              value={tempDensity}
+              onChange={(e) => setTempDensity(e?.target?.value)}
+              style={styles.densityInput}
+              placeholder="Grafts per cm²"
+            />
+            <div style={styles.modalButtons}>
+              <button onClick={saveCustomDensity} style={styles.modalButton}>
+                Save
+              </button>
+              <button 
+                onClick={() => setShowDensityModal(false)} 
+                style={{ ...styles.modalButton, backgroundColor: '#dc3545' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 
 const styles: { [key: string]: React.CSSProperties } = {
   container: {
@@ -634,6 +738,47 @@ const styles: { [key: string]: React.CSSProperties } = {
     backgroundColor: 'black',
     padding: '1rem',
     borderRadius: '6px',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: 'black',
+    padding: '20px',
+    borderRadius: '8px',
+    maxWidth: '400px',
+    width: '100%',
+  },
+  densityInput: {
+    width: '100%',
+    padding: '10px',
+    margin: '10px 0',
+    fontSize: '16px',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+  },
+  modalButtons: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '10px',
+    marginTop: '15px',
+  },
+  modalButton: {
+    padding: '8px 16px',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
   },
 };
 
