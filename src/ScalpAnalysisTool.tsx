@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Stage, Layer, Image, Line, Text, Group } from 'react-konva';
+import { Stage, Layer, Image, Line, Text, Group, Rect } from 'react-konva';
 import useImage from 'use-image';
 import heic2any from 'heic2any';
 
@@ -21,14 +21,14 @@ const ScalpAnalysisTool: React.FC = () => {
   const [drawingPoints, setDrawingPoints] = useState<number[]>([]);
   const [currentColor, setCurrentColor] = useState<string>('#FF0000');
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const [isSquareMode, setIsSquareMode] = useState<boolean>(false);
+  const [squareStart, setSquareStart] = useState<{ x: number, y: number } | null>(null);
+  const [squarePreview, setSquarePreview] = useState<{ x: number, y: number, size: number } | null>(null);
   const [pixelsPerCm, setPixelsPerCm] = useState<number>(1);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const getDeviceDPI = () => {
-      return window.devicePixelRatio * 96;
-    };
-
+    const getDeviceDPI = () => window.devicePixelRatio * 96;
     const dpi = getDeviceDPI();
     const pxPerCm = dpi / 2.54;
     setPixelsPerCm(pxPerCm);
@@ -60,9 +60,9 @@ const ScalpAnalysisTool: React.FC = () => {
     const isSmallScreen = window.innerWidth <= 768;
     return isMobileUA || isSmallScreen;
   }
-  
-  let isMobile = isMobileDevice(); 
-  let scaleFactor = isMobile ? 16 : ( 1 / 2.64); 
+
+  let isMobile = isMobileDevice();
+  let scaleFactor = isMobile ? 16 : (1 / 2.64);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,21 +93,65 @@ const ScalpAnalysisTool: React.FC = () => {
 
   const handleMouseDown = (e: any) => {
     if (!isDrawing) return;
+
     const pos = getPointerPos(e);
-    setDrawingPoints([pos.x, pos.y]);
+
+    if (isSquareMode) {
+      setSquareStart(pos);
+      setSquarePreview(null);
+    } else {
+      setDrawingPoints([pos.x, pos.y]);
+    }
   };
 
   const handleMouseMove = (e: any) => {
-    if (!isDrawing || drawingPoints.length === 0) return;
+    if (!isDrawing) return;
+
     const pos = getPointerPos(e);
-    setDrawingPoints((prev) => [...prev, pos.x, pos.y]);
+
+    if (isSquareMode && squareStart) {
+      const dx = pos.x - squareStart.x;
+      const dy = pos.y - squareStart.y;
+      const size = Math.max(Math.abs(dx), Math.abs(dy));
+      setSquarePreview({
+        x: squareStart.x,
+        y: squareStart.y,
+        size,
+      });
+    } else if (drawingPoints.length > 0) {
+      setDrawingPoints((prev) => [...prev, pos.x, pos.y]);
+    }
   };
 
   const handleMouseUp = () => {
-    if (drawingPoints.length >= 6) {
-      setCurrentPolygonPoints(drawingPoints);
-      setDrawingPoints([]);
+    if (!isDrawing) return;
+
+    if (isSquareMode && squareStart && squarePreview) {
+      const { x, y, size } = squarePreview;
+
+      const points = [
+        x, y,
+        x + size, y,
+        x + size, y + size,
+        x, y + size,
+      ];
+
+      const areaPixels = size * size;
+
+      const newPolygon: PolygonArea = {
+        id: Date.now().toString(),
+        color: currentColor,
+        points,
+        areaPixels,
+      };
+
+      setPolygons((prev) => [...prev, newPolygon]);
+      setSquareStart(null);
+      setSquarePreview(null);
+      setIsDrawing(false);
+    } else if (drawingPoints.length >= 6) {
       finishPolygon(drawingPoints);
+      setDrawingPoints([]);
     }
   };
 
@@ -124,7 +168,7 @@ const ScalpAnalysisTool: React.FC = () => {
     }
 
     const areaPixels = Math.abs(
-      coords.reduce((sum: any, curr: any, i: any) => {
+      coords?.reduce((sum: any, curr: any, i: any) => {
         const next = coords[(i + 1) % coords.length];
         return sum + (curr.x * next.y - next.x * curr.y);
       }, 0) / 2
@@ -137,7 +181,7 @@ const ScalpAnalysisTool: React.FC = () => {
       areaPixels,
     };
 
-    setPolygons([...polygons, newPolygon]);
+    setPolygons((prev) => [...prev, newPolygon]);
     setCurrentPolygonPoints([]);
     setIsDrawing(false);
   };
@@ -149,10 +193,6 @@ const ScalpAnalysisTool: React.FC = () => {
   return (
     <div ref={containerRef} style={styles.container}>
       <h2 style={styles.heading}>Scalp Analysis Tool</h2>
-      {/* <h3>Device Type: </h3>
-      {
-        `${navigator.userAgent} and width: ${window.innerWidth}px`
-      } */}
 
       <div style={styles.controls}>
         <input type="file" accept="image/*,.heic" onChange={handleImageUpload} style={styles.fileInput} />
@@ -167,8 +207,12 @@ const ScalpAnalysisTool: React.FC = () => {
           />
         </label>
 
-        <button onClick={() => setIsDrawing(true)} disabled={!image} style={styles.button}>
-          Start Drawing
+        <button onClick={() => { setIsDrawing(true); setIsSquareMode(false); }} disabled={!image} style={styles.button}>
+          Free Draw
+        </button>
+
+        <button onClick={() => { setIsDrawing(true); setIsSquareMode(true); }} disabled={!image} style={styles.button}>
+          Draw Square
         </button>
 
         <button onClick={undoLastPolygon} disabled={polygons.length === 0} style={styles.undoButton}>
@@ -220,6 +264,18 @@ const ScalpAnalysisTool: React.FC = () => {
                   strokeWidth={2}
                   lineJoin="round"
                   tension={0.4}
+                />
+              )}
+
+              {squarePreview && (
+                <Rect
+                  x={squarePreview.x}
+                  y={squarePreview.y}
+                  width={squarePreview.size}
+                  height={squarePreview.size}
+                  fill={currentColor}
+                  opacity={0.4}
+                  stroke="black"
                 />
               )}
             </Layer>
