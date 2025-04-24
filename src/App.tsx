@@ -1,11 +1,14 @@
 import './App.css'
-import ScalpAnalysisTool from './ScalpAnalysisTool'
+// import ScalpAnalysisTool from './ScalpAnalysisTool'; 
+import FeaturedScalpTool from "./FeaturedScalpTool"; 
+
 
 function App() {
 
   return (
     <>
-      <ScalpAnalysisTool />
+      {/* <ScalpAnalysisTool /> */}
+      <FeaturedScalpTool />
     </>
   )
 };
