@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer, Image, Line, Text, Group, Rect } from 'react-konva';
 import useImage from 'use-image';
 import heic2any from 'heic2any';
+import html2canvas from 'html2canvas'; 
 
 interface PolygonArea {
   id: string;
@@ -18,9 +19,10 @@ const graftsPerCmByColor: Record<string, number> = {
   '#800080': 20   // Purple
 };
 
-const FeaturedScalpTool: React.FC = () => {
+const ScalpAnalysisTool: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<any>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   const [imageURL, setImageURL] = useState<string | null>(null);
   const [image] = useImage(imageURL || '');
@@ -34,6 +36,7 @@ const FeaturedScalpTool: React.FC = () => {
   const [squarePreview, setSquarePreview] = useState<{ x: number, y: number, size: number } | null>(null);
   const [pixelsPerCm, setPixelsPerCm] = useState<number>(1);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [fileName, setFileName] = useState<string>('scalp-analysis');
 
   // Function to find the closest predefined color
   const getClosestColor = (color: string): string => {
@@ -45,6 +48,7 @@ const FeaturedScalpTool: React.FC = () => {
       return { r, g, b };
     };
 
+    // Calculate color distance
     const colorDistance = (c1: { r: number; g: number; b: number }, c2: { r: number; g: number; b: number }) => {
       return Math.sqrt(
         Math.pow(c1.r - c2.r, 2) +
@@ -68,6 +72,70 @@ const FeaturedScalpTool: React.FC = () => {
     }
 
     return closestColor;
+  };
+
+  // Open in new tab function
+  const openInNewTab = () => {
+    if (!exportRef.current) return;
+    
+    html2canvas(exportRef.current).then(canvas => {
+      const dataUrl = canvas.toDataURL('image/png');
+      const newWindow = window.open();
+      if (newWindow) {
+        newWindow.document.write(`<img src="${dataUrl}" style="max-width:100%;"/>`);
+        newWindow.document.title = 'Scalp Analysis Result';
+      }
+    });
+  };
+
+  // Save as image function
+  const saveAsImage = () => {
+    if (!exportRef.current) return;
+    
+    html2canvas(exportRef.current).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `${fileName || 'scalp-analysis'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  };
+
+  // Save as JSON function
+  const saveAsJSON = () => {
+    const data = {
+      image: imageURL,
+      polygons: polygons,
+      createdAt: new Date().toISOString(),
+      settings: {
+        pixelsPerCm,
+        graftsPerCmByColor
+      }
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.download = `${fileName || 'scalp-analysis'}.json`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  };
+
+  // Load from JSON function
+  const loadFromJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (data.image) setImageURL(data.image);
+        if (data.polygons) setPolygons(data.polygons);
+      } catch (error) {
+        alert('Failed to load file. Invalid format.');
+        console.error(error);
+      }
+    };
+    reader.readAsText(file);
   };
 
   useEffect(() => {
@@ -110,6 +178,9 @@ const FeaturedScalpTool: React.FC = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Set the filename without extension
+    setFileName(file.name.replace(/\.[^/.]+$/, ""));
 
     if (file.type === 'image/heic' || file.name.endsWith('.heic')) {
       try {
@@ -226,136 +297,208 @@ const FeaturedScalpTool: React.FC = () => {
     setPolygons((prev) => prev.slice(0, -1));
   };
 
+  const clearAll = () => {
+    setPolygons([]);
+    setDrawingPoints([]);
+    setCurrentPolygonPoints([]);
+  };
+
   return (
-    <div ref={containerRef} style={styles.container}>
-      <h2 style={styles.heading}>Scalp Analysis Tool</h2>
+    <div style={styles.container}>
+      <div ref={exportRef} style={styles.exportContainer}>
+        <h2 style={styles.heading}>Scalp Analysis Tool</h2>
+        
+        <div ref={containerRef} style={styles.toolContainer}>
+          <div style={styles.controls}>
+            <div style={styles.fileGroup}>
+              <label style={styles.fileInputLabel}>
+                Upload Image
+                <input 
+                  type="file" 
+                  accept="image/*,.heic" 
+                  onChange={handleImageUpload} 
+                  style={styles.fileInput} 
+                />
+              </label>
+              <label style={styles.fileInputLabel}>
+                Load Project
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  onChange={loadFromJSON} 
+                  style={styles.fileInput} 
+                />
+              </label>
+            </div>
 
-      <div style={styles.controls}>
-        <input type="file" accept="image/*,.heic" onChange={handleImageUpload} style={styles.fileInput} />
+            <div style={styles.drawingControls}>
+              <label style={styles.label}>
+                Color:
+                <input
+                  type="color"
+                  value={currentColor}
+                  onChange={(e) => setCurrentColor(e.target.value)}
+                  style={styles.colorPicker}
+                />
+              </label>
 
-        <label style={styles.label}>
-          Color:
-          <input
-            type="color"
-            value={currentColor}
-            onChange={(e) => setCurrentColor(e.target.value)}
-            style={styles.colorPicker}
-          />
-        </label>
+              <button 
+                onClick={() => { setIsDrawing(true); setIsSquareMode(false); }} 
+                disabled={!image} 
+                style={styles.button}
+              >
+                Free Draw
+              </button>
 
-        <button onClick={() => { setIsDrawing(true); setIsSquareMode(false); }} disabled={!image} style={styles.button}>
-          Free Draw
-        </button>
+              <button 
+                onClick={() => { setIsDrawing(true); setIsSquareMode(true); }} 
+                disabled={!image} 
+                style={styles.button}
+              >
+                Draw Square
+              </button>
 
-        <button onClick={() => { setIsDrawing(true); setIsSquareMode(true); }} disabled={!image} style={styles.button}>
-          Draw Square
-        </button>
+              <button 
+                onClick={undoLastPolygon} 
+                disabled={polygons.length === 0} 
+                style={styles.undoButton}
+              >
+                Undo Last
+              </button>
 
-        <button onClick={undoLastPolygon} disabled={polygons.length === 0} style={styles.undoButton}>
-          Undo Last
-        </button>
-      </div>
+              <button 
+                onClick={clearAll} 
+                disabled={polygons.length === 0 && drawingPoints.length === 0} 
+                style={styles.clearButton}
+              >
+                Clear All
+              </button>
+            </div>
 
-      {image && (
-        <div style={{ ...styles.canvasWrapper, width: stageSize.width }}>
-          <Stage
-            ref={stageRef}
-            width={stageSize.width}
-            height={stageSize.height}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            style={{ touchAction: 'none', border: '1px solid #ccc' }}
-          >
-            <Layer>
-              <Image image={image} width={stageSize.width} height={stageSize.height} />
+            <div style={styles.exportControls}>
+              <label style={styles.label}>
+                Filename:
+                <input
+                  type="text"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  style={styles.filenameInput}
+                />
+              </label>
+              <button onClick={openInNewTab} disabled={!image} style={styles.exportButton}>
+                Open in New Tab
+              </button>
+              <button onClick={saveAsImage} disabled={!image} style={styles.exportButton}>
+                Save as Image
+              </button>
+              <button onClick={saveAsJSON} disabled={!image} style={styles.exportButton}>
+                Save as Project
+              </button>
+            </div>
+          </div>
 
-              {polygons.map((poly) => {
-                const areaCm = poly.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm);
-                const matchedColor = getClosestColor(poly.color);
-                const grafts = Math.round(areaCm * (graftsPerCmByColor[matchedColor] || 0));
+          {image && (
+            <div style={{ ...styles.canvasWrapper, width: stageSize.width }}>
+              <Stage
+                ref={stageRef}
+                width={stageSize.width}
+                height={stageSize.height}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                style={{ touchAction: 'none', border: '1px solid #ccc' }}
+              >
+                <Layer>
+                  <Image image={image} width={stageSize.width} height={stageSize.height} />
 
-                return (
-                  <Group key={poly.id}>
+                  {polygons.map((poly) => {
+                    const areaCm = poly.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm);
+                    const matchedColor = getClosestColor(poly.color);
+                    const grafts = Math.round(areaCm * (graftsPerCmByColor[matchedColor] || 0));
+
+                    return (
+                      <Group key={poly.id}>
+                        <Line
+                          points={poly.points}
+                          closed
+                          fill={poly.color}
+                          opacity={0.4}
+                          stroke="black"
+                          strokeWidth={1}
+                        />
+                        <Text
+                          x={poly.points[0]}
+                          y={poly.points[1] - 40}
+                          text={`Area: ${areaCm.toFixed(2)} cm²`}
+                          fontSize={14}
+                          fill="black"
+                        />
+                        <Text
+                          x={poly.points[0]}
+                          y={poly.points[1] - 20}
+                          text={`Grafts: ${grafts} (${matchedColor})`}
+                          fontSize={14}
+                          fill="black"
+                        />
+                      </Group>
+                    );
+                  })}
+
+                  {drawingPoints.length > 2 && (
                     <Line
-                      points={poly.points}
-                      closed
-                      fill={poly.color}
+                      points={drawingPoints}
+                      stroke={currentColor}
+                      strokeWidth={2}
+                      lineJoin="round"
+                      tension={0.4}
+                    />
+                  )}
+
+                  {squarePreview && (
+                    <Rect
+                      x={squarePreview.x}
+                      y={squarePreview.y}
+                      width={squarePreview.size}
+                      height={squarePreview.size}
+                      fill={currentColor}
                       opacity={0.4}
                       stroke="black"
-                      strokeWidth={1}
                     />
-                    <Text
-                      x={poly.points[0]}
-                      y={poly.points[1] - 40}
-                      text={`Area: ${areaCm.toFixed(2)} cm²`}
-                      fontSize={14}
-                      fill="black"
+                  )}
+                </Layer>
+              </Stage>
+            </div>
+          )}
+
+          <div style={styles.regionList}>
+            <h3>Regions</h3>
+            <ul>
+              {polygons.map((p) => {
+                const areaCm = p.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm);
+                const matchedColor = getClosestColor(p.color);
+                const grafts = Math.round(areaCm * (graftsPerCmByColor[matchedColor] || 0));
+                return (
+                  <li key={p.id}>
+                    <span
+                      style={{
+                        backgroundColor: p.color,
+                        width: 12,
+                        height: 12,
+                        display: 'inline-block',
+                        marginRight: 8,
+                        borderRadius: '50%',
+                      }}
                     />
-                    <Text
-                      x={poly.points[0]}
-                      y={poly.points[1] - 20}
-                      text={`Grafts: ${grafts} (${matchedColor})`}
-                      fontSize={14}
-                      fill="black"
-                    />
-                  </Group>
+                    {p.points.length / 2} points – {areaCm.toFixed(2)} cm² – {grafts} grafts (matched to {matchedColor})
+                  </li>
                 );
               })}
-
-              {drawingPoints.length > 2 && (
-                <Line
-                  points={drawingPoints}
-                  stroke={currentColor}
-                  strokeWidth={2}
-                  lineJoin="round"
-                  tension={0.4}
-                />
-              )}
-
-              {squarePreview && (
-                <Rect
-                  x={squarePreview.x}
-                  y={squarePreview.y}
-                  width={squarePreview.size}
-                  height={squarePreview.size}
-                  fill={currentColor}
-                  opacity={0.4}
-                  stroke="black"
-                />
-              )}
-            </Layer>
-          </Stage>
+            </ul>
+          </div>
         </div>
-      )}
-
-      <div style={styles.regionList}>
-        <h3>Regions</h3>
-        <ul>
-          {polygons.map((p) => {
-            const areaCm = p.areaPixels * scaleFactor / (pixelsPerCm * pixelsPerCm);
-            const matchedColor = getClosestColor(p.color);
-            const grafts = Math.round(areaCm * (graftsPerCmByColor[matchedColor] || 0));
-            return (
-              <li key={p.id}>
-                <span
-                  style={{
-                    backgroundColor: p.color,
-                    width: 12,
-                    height: 12,
-                    display: 'inline-block',
-                    marginRight: 8,
-                    borderRadius: '50%',
-                  }}
-                />
-                {p.points.length / 2} points – {areaCm.toFixed(2)} cm² – {grafts} grafts (matched to {matchedColor})
-              </li>
-            );
-          })}
-        </ul>
       </div>
     </div>
   );
@@ -366,6 +509,16 @@ const styles: { [key: string]: React.CSSProperties } = {
     padding: '1rem',
     fontFamily: 'sans-serif',
     maxWidth: '100%',
+    background: 'black',
+  },
+  exportContainer: {
+    background: 'black',
+    padding: '1rem',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  },
+  toolContainer: {
+    maxWidth: '100%',
   },
   heading: {
     fontSize: '1.5rem',
@@ -374,25 +527,54 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   controls: {
     display: 'flex',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: '1rem',
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: '1rem',
   },
-  fileInput: {
+  fileGroup: {
+    display: 'flex',
+    gap: '1rem',
+    flexWrap: 'wrap',
+  },
+  drawingControls: {
+    display: 'flex',
+    gap: '1rem',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  exportControls: {
+    display: 'flex',
+    gap: '1rem',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    paddingTop: '1rem',
+    borderTop: '1px solid #eee',
+  },
+  fileInputLabel: {
+    padding: '0.5rem 1rem',
     fontSize: '1rem',
+    backgroundColor: '#f0f0f0',
+    color: '#333',
+    border: '1px solid #ddd',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    display: 'inline-block',
+  },
+  fileInput: {
+    display: 'none',
   },
   label: {
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
+    fontSize: '1rem',
   },
   colorPicker: {
     width: '40px',
     height: '30px',
     border: 'none',
     padding: 0,
+    cursor: 'pointer',
   },
   button: {
     padding: '0.5rem 1rem',
@@ -402,6 +584,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
+    minWidth: '120px',
   },
   undoButton: {
     padding: '0.5rem 1rem',
@@ -411,6 +594,34 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
+    minWidth: '120px',
+  },
+  clearButton: {
+    padding: '0.5rem 1rem',
+    fontSize: '1rem',
+    backgroundColor: '#ffc107',
+    color: '#212529',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    minWidth: '120px',
+  },
+  exportButton: {
+    padding: '0.5rem 1rem',
+    fontSize: '1rem',
+    backgroundColor: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    minWidth: '160px',
+  },
+  filenameInput: {
+    padding: '0.5rem',
+    fontSize: '1rem',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    marginLeft: '0.5rem',
   },
   canvasWrapper: {
     maxWidth: '100%',
@@ -420,7 +631,10 @@ const styles: { [key: string]: React.CSSProperties } = {
   regionList: {
     marginTop: '1rem',
     fontSize: '0.9rem',
+    backgroundColor: 'black',
+    padding: '1rem',
+    borderRadius: '6px',
   },
 };
 
-export default FeaturedScalpTool;
+export default ScalpAnalysisTool;
