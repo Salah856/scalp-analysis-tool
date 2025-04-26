@@ -603,6 +603,20 @@ const ScalpAnalysisTool: React.FC = () => {
           </div>
         </div>
       )}
+      <footer style={styles.footer}>
+        <div style={styles.footerContent}>
+          Developed by Salah Elhossiny
+          <div style={styles.socialLinks}>
+            <a href="https://github.com/Salah856" target="_blank" rel="noopener noreferrer" style={styles.socialLink}>
+              GitHub
+            </a>
+            <span style={styles.linkSeparator}>|</span>
+            <a href="https://www.linkedin.com/in/salah-elhossiny/" target="_blank" rel="noopener noreferrer" style={styles.socialLink}>
+              LinkedIn
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
@@ -779,6 +793,32 @@ const styles: { [key: string]: React.CSSProperties } = {
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
+  },
+  footer: {
+    marginTop: '2rem',
+    padding: '1rem',
+    textAlign: 'center',
+    color: '#666',
+    fontSize: '0.9rem',
+    borderTop: '1px solid #eee',
+  },
+  footerContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  socialLinks: {
+    display: 'flex',
+    gap: '1rem',
+    alignItems: 'center',
+  },
+  socialLink: {
+    color: '#007bff',
+    textDecoration: 'none',
+  },
+  linkSeparator: {
+    color: '#999',
   },
 };
 
