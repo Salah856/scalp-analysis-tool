@@ -798,7 +798,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     marginTop: '2rem',
     padding: '1rem',
     textAlign: 'center',
-    color: '#666',
+    color: 'white',
     fontSize: '0.9rem',
     borderTop: '1px solid #eee',
   },
