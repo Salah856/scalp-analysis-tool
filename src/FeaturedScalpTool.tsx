@@ -210,9 +210,6 @@ const ScalpAnalysisTool: React.FC = () => {
   }, [image]);
 
 
-  // Rest of the existing functions (useEffect, getPointerPos, isMobileDevice, etc.) remain the same
-  // ... [Previous useEffect and other helper functions remain unchanged]
-
   const getPointerPos = (e: any) => {
     const stage = e.target.getStage();
     return stage.getPointerPosition();
@@ -230,10 +227,7 @@ const ScalpAnalysisTool: React.FC = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Set the filename without extension
     setFileName(file.name.replace(/\.[^/.]+$/, ""));
-
     if (file.type === 'image/heic' || file.name.endsWith('.heic')) {
       try {
         const convertedBlob = (await heic2any({
