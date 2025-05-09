@@ -3,6 +3,7 @@ import { Stage, Layer, Image, Line, Text, Group, Rect } from 'react-konva';
 import useImage from 'use-image';
 import heic2any from 'heic2any';
 import html2canvas from 'html2canvas'; 
+// import useAuth from './useAuth';
 
 
 interface PolygonArea {
@@ -49,6 +50,8 @@ const ScalpAnalysisTool: React.FC = () => {
   const [showDensityModal, setShowDensityModal] = useState<boolean>(false);
   const [editingPolygonId, setEditingPolygonId] = useState<string | null>(null);
   const [tempDensity, setTempDensity] = useState<string>('');
+
+  const [referenceFactor, setReferenceFactor] = useState(1); 
 
   const getDensityForColor = (color: string): number => {
     const densityObj = colorDensities.find(d => d.color === color);
@@ -434,6 +437,14 @@ const ScalpAnalysisTool: React.FC = () => {
                   style={styles.filenameInput}
                 />
               </label>
+              <label style={styles.label}>
+                Reference Factor:
+                <input
+                  type="number"
+                  onChange={(e) => setReferenceFactor(+e?.target?.value || 1)}
+                  style={styles?.filenameInput}
+                />
+              </label>
               <button onClick={openInNewTab} disabled={!image} style={styles.exportButton}>
                 Open in New Tab
               </button>
@@ -531,6 +542,8 @@ const ScalpAnalysisTool: React.FC = () => {
                 const matchedColor = getClosestColor(p.color);
                 const density = p.customDensity || matchedColor.density;
                 const grafts = Math.round(areaCm * density);
+                const actualGrafts = grafts * referenceFactor; 
+
                 return (
                   <li 
                     key={p.id} 
@@ -557,10 +570,13 @@ const ScalpAnalysisTool: React.FC = () => {
                       />
                       <div>
                         <div>
-                          <strong>Area:</strong> {areaCm.toFixed(2)} cm²
+                          <strong>Area:</strong> {areaCm?.toFixed(2)} cm²
                         </div>
                         <div>
-                          <strong>Required Grafts:</strong> {grafts} (Density: {density} grafts/cm²)
+                          <strong>Relative Required Grafts:</strong> {grafts} (Density: {density} grafts/cm²)
+                        </div>
+                        <div>
+                          <strong>Actual Required Grafts:</strong> {actualGrafts}
                         </div>
                         {p?.customDensity && (
                           <div style={{ color: '#666', fontSize: '0.8em' }}>

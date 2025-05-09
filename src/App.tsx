@@ -1,18 +1,22 @@
 import './App.css'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import FeaturedScalpTool from './FeaturedScalpTool';
 // import ScalpAnalysisTool from './ScalpAnalysisTool'; 
-import FeaturedScalpTool from "./FeaturedScalpTool"; 
-
+import LoginForm from './LoginForm';
 
 function App() {
-
   return (
-    <>
-      {/* <ScalpAnalysisTool /> */}
-      <FeaturedScalpTool />
-    </>
-  )
+    <Router>
+      <Routes>
+        <Route path="/" element={<FeaturedScalpTool />} />
+        <Route path="/login" element={<LoginForm />} />
+        <Route path="*" element={<LoginForm />} />
+      </Routes>
+    </Router>
+  );
 };
 
 export default App;
+
 
 
