@@ -21,6 +21,7 @@
   margin-right: 15px;
   padding: 5px 10px;
   cursor: pointer;
+  color: black; 
 }
 
 .controls {
@@ -148,6 +149,7 @@
   
   .mobile-header {
     display: none;
+    color: black; 
   }
   
   .controls {

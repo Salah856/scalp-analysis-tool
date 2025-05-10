@@ -214,7 +214,9 @@ const MobileFreehandAreaMeasurement = () => {
         >
           ☰
         </button>
-        <h1>Area Measurement</h1>
+        <h2 style={{color: 'black', }}> 
+          Scalp Area Measurement
+        </h2>
       </div>
 
       {/* Collapsible menu for mobile */}
