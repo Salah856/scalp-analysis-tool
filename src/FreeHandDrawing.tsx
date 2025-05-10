@@ -1,14 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 
-type Point = [number, number];
-type Mode = 'reference' | 'region';
-type Region = {
-  points: Point[];
-  color: string;
-  areaCm2?: number;
-};
-
-const COLORS = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+import {  
+  Point, 
+  Region, 
+  Mode, 
+  COLORS, 
+  handleImageUpload, 
+  calculateArea, 
+} from "./utils"; 
 
 const FreehandAreaMeasurement = () => {
   // Refs
@@ -38,21 +37,6 @@ const FreehandAreaMeasurement = () => {
     const ctx = canvasRef.current.getContext('2d');
     if (ctx) ctx.drawImage(image, 0, 0, width, height);
   }, [image]);
-
-  // Handle image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const img = new Image();
-    img.onload = () => {
-      setImage(img);
-      setRegions([]);
-      setPixelsPerCm(null);
-    };
-    img.onerror = () => alert('Error loading image');
-    img.src = URL.createObjectURL(file);
-  };
 
   // Get accurate canvas position accounting for CSS scaling
   const getCanvasPosition = useCallback((clientX: number, clientY: number): Point => {
@@ -90,50 +74,23 @@ const FreehandAreaMeasurement = () => {
       const [x2, y2] = currentPoints[currentPoints.length - 1];
       const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
       setPixelsPerCm(dist);
-      alert(`Reference line length: ${dist.toFixed(2)} px = 1 cm`);
     } else {
       if (!pixelsPerCm) {
         alert('Please draw a 1 cm reference line first.');
         return;
       }
-      const areaCm2 = calculateArea(currentPoints);
+      const areaCm2 = calculateArea(currentPoints, offscreenCanvasRef, pixelsPerCm);
       setRegions(prev => [...prev, {
         points: [...currentPoints],
         color: currentColor,
         areaCm2
       }]);
-      alert(`Region area: ${areaCm2.toFixed(2)} cm²`);
-    }
+    };
 
     setDrawing(false);
     setCurrentPoints([]);
   };
-
-  // Calculate area using offscreen canvas
-  const calculateArea = (points: Point[]): number => {
-    if (!offscreenCanvasRef.current || !pixelsPerCm) return 0;
-
-    const canvas = offscreenCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return 0;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.beginPath();
-    ctx.moveTo(points[0][0], points[0][1]);
-    points.forEach(([x, y]) => ctx.lineTo(x, y));
-    ctx.closePath();
-    ctx.fillStyle = 'black';
-    ctx.fill();
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let filledPixels = 0;
-    for (let i = 0; i < imageData.data.length; i += 4) {
-      if (imageData.data[i + 3] > 0) filledPixels++;
-    }
-
-    return filledPixels / (pixelsPerCm * pixelsPerCm);
-  };
-
+  
   // Redraw the canvas
   const redrawCanvas = useCallback(() => {
     if (!canvasRef.current || !image) return;
@@ -224,7 +181,13 @@ const FreehandAreaMeasurement = () => {
   return (
     <div className="measurement-tool">
       <div className="controls">
-        <input type="file" accept="image/*" onChange={handleImageUpload} />
+        <input 
+          type="file" 
+          accept="image/*" 
+          onChange={(e)=>{
+            handleImageUpload(e, setImage, setRegions, setPixelsPerCm); 
+          }} 
+        />
         <button onClick={() => setMode('reference')} disabled={mode === 'reference'}>
           Draw 1 cm Reference
         </button>
