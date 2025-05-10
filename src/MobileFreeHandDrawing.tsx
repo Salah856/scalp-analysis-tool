@@ -38,6 +38,7 @@ const MobileFreehandAreaMeasurement = () => {
     if (ctx) {
       ctx.drawImage(image, 0, 0, width * scale, height * scale);
       setCanvasSize({ width: width * scale, height: height * scale });
+      console.log(canvasSize); 
     }
   }, [image]);
 
